@@ -5,8 +5,9 @@ import torch
 
 import config
 from models import MnistModel
-from utils import create_dirs
+from utils import create_dirs, fix_seeds
 from datasets import OmniglotDataset
+
 
 def parse_args():
     usage = f'Usage: python {__file__} [-t | --train] [-p | --predict]'
@@ -29,6 +30,7 @@ def test():
 if __name__ == '__main__':
     args, parser = parse_args()
 
+    fix_seeds(0)
     create_dirs(config.BASE_PATH)
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     test()
