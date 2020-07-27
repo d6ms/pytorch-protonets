@@ -67,11 +67,12 @@ class OmniglotDataset(Dataset):
                 progress.update(1)
         progress.close()
 
-        # クラスごとにユニークなIDを振り，class_nameカラムとして追加
+        # DataFrameに変換
         df = pd.DataFrame(images)
+        df = df.assign(id=df.index.values)  # indexに応じた値をIDカラムとして追加
         unique_characters = sorted(df['class_name'].unique())
         num_classes = len(df['class_name'].unique())
         class_name_to_id = {unique_characters[i]: i for i in range(num_classes)}
-        df = df.assign(class_id=df['class_name'].apply(lambda c: class_name_to_id[c]))
+        df = df.assign(class_id=df['class_name'].apply(lambda c: class_name_to_id[c]))  # クラスごとにユニークなIDを振り，class_nameカラムとして追加
         return df
 
