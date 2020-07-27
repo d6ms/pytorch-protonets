@@ -2,10 +2,11 @@ import os
 from argparse import ArgumentParser
 
 import torch
+from torch.optim import Adam
 from torch.utils.data import DataLoader
 
 import config
-from models import MnistModel
+from models import protonet_embedding_model
 from utils import create_dirs, fix_seeds
 from datasets import OmniglotDataset
 from samplers import FewShotBatchSampler
@@ -30,19 +31,36 @@ def predict():
 
 def test():
     n, k, q = 1, 3, 5
+    # n, k, q = 1, 60, 5
     dataset = OmniglotDataset(subset='background')
-    sampler = FewShotBatchSampler(dataset,
-                                  episodes_per_epoch=100,
-                                  n=n,
-                                  k=k,
-                                  q=q,
-                                  num_tasks=1)
+    sampler = FewShotBatchSampler(dataset, episodes_per_epoch=100, n=n, k=k, q=q, num_tasks=1)
     dataloader = DataLoader(dataset, batch_sampler=sampler, num_workers=4)
-    for i, batch in enumerate(dataloader):
-        # x.shape: [k * (n + q) * num_tasks, 1, 105, 105]
-        # y.shape: [k * q]
-        x, y = prepare_batch(batch, k, q)
-        break
+
+    model = protonet_embedding_model()
+    optimizer = Adam(model.parameters(), lr=1e-3)
+    loss_fn = torch.nn.NLLLoss()  # .cuda()
+
+    model.train()
+    optimizer.zero_grad()
+    for epoch in range(1):
+        for i, batch in enumerate(dataloader):
+            # x.shape: [k * (n + q) * num_tasks, 1, 105, 105]
+            # y.shape: [k * q]
+            x, y = prepare_batch(batch, k, q)
+            
+            embeddings = model(x)
+            supports, queries = embeddings[:n * k], embeddings[n * k:]
+            prototypes = supports.reshape(k, n, -1).mean(dim=1)
+
+            distances = calc_distances(queries, prototypes, k, q)
+
+            log_p_y = (-distances).log_softmax(dim=1)
+            loss = loss_fn(log_p_y, y)
+
+            y_pred = (-distances).softmax(dim=1)
+
+            loss.backward()
+            optimizer.step()
 
 
 def prepare_batch(batch, k, q):
@@ -51,13 +69,20 @@ def prepare_batch(batch, k, q):
     # k * (n + q) means [n support sets of class 1 to k, q query sets of class 1 to k]
     data, label = batch
 
-    x = data.double() # .cuda()
+    x = data.float() # .cuda()
 
     # y = [*([0] * q), *([1] * q), ..., *([k - 1] * q)]
     # 正解ラベルはq個ごとにまとまっているため，q個ごとにclassification用のラベルを[0, k)で振り直す
     y = torch.arange(0, k, 1 / q).long() # .cuda()
 
     return x, y
+
+
+def calc_distances(queries, prototypes, k, q):
+    return (
+        queries.unsqueeze(1).expand(k * q, k, -1) -
+        prototypes.unsqueeze(0).expand(k * q, k, -1)
+    ).pow(2).sum(dim=2)
 
 
 if __name__ == '__main__':
