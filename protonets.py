@@ -21,46 +21,72 @@ def parse_args():
     return args, parser
 
 
-def train():
-    pass
+def train(epochs, n_train, k_train, q_train, n_eval=1, k_eval=3, q_eval=5, episodes_per_epoch=100, num_tasks=1, lr=1e-3):
+    # dataloaders for train and eval
+    train_set = OmniglotDataset(subset='background')
+    train_loader = DataLoader(train_set, num_workers=4, batch_sampler=FewShotBatchSampler(
+        train_set, episodes_per_epoch=episodes_per_epoch, n=n_train, k=k_train, q=q_train, num_tasks=num_tasks
+    ))
+    eval_set = OmniglotDataset(subset='evaluation')
+    eval_loader = DataLoader(eval_set, num_workers=4, batch_sampler=FewShotBatchSampler(
+        eval_set, episodes_per_epoch=episodes_per_epoch, n=n_eval, k=k_eval, q=q_eval, num_tasks=num_tasks
+    ))
 
-
-def predict():
-    pass
-
-
-def test():
-    n, k, q = 1, 3, 5
-    # n, k, q = 1, 60, 5
-    dataset = OmniglotDataset(subset='background')
-    sampler = FewShotBatchSampler(dataset, episodes_per_epoch=100, n=n, k=k, q=q, num_tasks=1)
-    dataloader = DataLoader(dataset, batch_sampler=sampler, num_workers=4)
-
+    # train settings
     model = protonet_embedding_model()
-    optimizer = Adam(model.parameters(), lr=1e-3)
+    optimizer = Adam(model.parameters(), lr=lr)
     loss_fn = torch.nn.NLLLoss()  # .cuda()
 
+    for epoch in range(1, epochs + 1):
+        train_epoch(model, optimizer, loss_fn, train_loader, n_train, k_train, q_train, epoch)
+        evaluate(model, optimizer, loss_fn, train_loader, n_eval, k_eval, q_eval, epoch)
+
+
+def train_epoch(model, optimizer, loss_fn, dataloader, n, k, q, epoch_idx):
     model.train()
     optimizer.zero_grad()
-    for epoch in range(1):
-        for i, batch in enumerate(dataloader):
-            # x.shape: [k * (n + q) * num_tasks, 1, 105, 105]
-            # y.shape: [k * q]
+    for i, batch in enumerate(dataloader, 1):
+        # x.shape: [k * (n + q) * num_tasks, 1, 105, 105]
+        # y.shape: [k * q]
+        x, y = prepare_batch(batch, k, q)
+
+        y_pred, loss = predict(x, y, model, loss_fn, n, k, q)
+
+        loss.backward()
+        optimizer.step()
+
+        print(f'[epoch {epoch_idx} batch {i}] loss: {loss.item()}')
+
+
+def evaluate(model, optimizer, loss_fn, dataloader, n, k, q, epoch_idx):
+    model.eval()
+
+    total_loss, data_cnt = 0, 0
+    with torch.no_grad():
+        for i, batch in enumerate(dataloader, 1):
             x, y = prepare_batch(batch, k, q)
             
-            embeddings = model(x)
-            supports, queries = embeddings[:n * k], embeddings[n * k:]
-            prototypes = supports.reshape(k, n, -1).mean(dim=1)
+            y_pred, loss = predict(x, y, model, loss_fn, n, k, q)
 
-            distances = calc_distances(queries, prototypes, k, q)
+            data_cnt += y_pred.shape[0]
+            total_loss += loss.item() * y_pred.shape[0]
 
-            log_p_y = (-distances).log_softmax(dim=1)
-            loss = loss_fn(log_p_y, y)
+    print(f'[epoch {epoch_idx} eval] loss: {total_loss / data_cnt}')
 
-            y_pred = (-distances).softmax(dim=1)
 
-            loss.backward()
-            optimizer.step()
+def predict(x, y, model, loss_fn, n, k, q):
+    embeddings = model(x)
+    supports, queries = embeddings[:n * k], embeddings[n * k:]
+    prototypes = supports.reshape(k, n, -1).mean(dim=1)
+
+    distances = calc_distances(queries, prototypes, k, q)
+
+    log_p_y = (-distances).log_softmax(dim=1)
+    loss = loss_fn(log_p_y, y)
+
+    y_pred = (-distances).softmax(dim=1)
+
+    return y_pred, loss
 
 
 def prepare_batch(batch, k, q):
@@ -91,7 +117,9 @@ if __name__ == '__main__':
     fix_seeds(0)
     create_dirs(config.BASE_PATH)
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-    test()
+    
+    # n, k, q = 1, 60, 5
+    train(3, 1, 3, 5, episodes_per_epoch=5)
     exit()
 
     if args.train:
