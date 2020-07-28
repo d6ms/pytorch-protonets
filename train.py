@@ -17,6 +17,18 @@ matplotlib.use('Agg')
 
 
 def train(epochs, n_train, k_train, q_train, n_eval=1, k_eval=3, q_eval=5, episodes_per_epoch=100, num_tasks=1, lr=1e-3, lr_step_size=20, lr_gamma=0.5):
+    # print parameters
+    print('================ parameters ================')
+    print('epochs', epochs)
+    print('train (n, k, q)', n_train, k_train, q_train)
+    print('eval (n, k, q)', n_eval, k_eval, q_eval)
+    print('episodes per epoch', episodes_per_epoch)
+    print('num_tasks', num_tasks)
+    print('learning rate', lr)
+    print('learning rate step size', lr_step_size)
+    print('learning rate step rate', lr_gamma)
+    print('============================================')
+
     # dataloaders for train and eval
     train_set = OmniglotDataset(subset='background')
     train_loader = DataLoader(train_set, num_workers=4, batch_sampler=FewShotBatchSampler(
@@ -35,11 +47,13 @@ def train(epochs, n_train, k_train, q_train, n_eval=1, k_eval=3, q_eval=5, episo
 
     summary(model, (1, 105, 105))
 
+    # train
     history = {'loss': list(), 'accuracy': list()}
     for epoch in range(1, epochs + 1):
         train_epoch(model, optimizer, scheduler, loss_fn, train_loader, n_train, k_train, q_train, epoch)
         evaluate(model, history, loss_fn, eval_loader, n_eval, k_eval, q_eval, epoch)
     
+    # save model and history
     torch.save(model.state_dict(), f'{config.MODEL_PATH}/protonets.model')
     save_history(history)
 

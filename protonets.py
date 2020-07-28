@@ -9,10 +9,16 @@ from train import train
 
 
 def parse_args():
-    usage = f'Usage: python {__file__} [-t | --train] [-p | --predict]'
-    parser = ArgumentParser(usage=usage)
+    parser = ArgumentParser()
     parser.add_argument('-t', '--train', action='store_true', help='train model')
-    parser.add_argument('-p', '--predict', action='store_true', help='load model and demonstrate prediction')
+    parser.add_argument('--epochs', default=40, type=int)
+    parser.add_argument('--episodes', default=100, type=int)
+    parser.add_argument('--n-train', default=1, type=int)
+    parser.add_argument('--n-eval', default=1, type=int)
+    parser.add_argument('--k-train', default=60, type=int)
+    parser.add_argument('--k-eval', default=5, type=int)
+    parser.add_argument('--q-train', default=5, type=int)
+    parser.add_argument('--q-eval', default=1, type=int)
     args = parser.parse_args()
     return args, parser
 
@@ -23,12 +29,8 @@ if __name__ == '__main__':
     fix_seeds(0)
     create_dirs(config.BASE_PATH)
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-    
-    # n, k, q = 1, 60, 5
-    train(3, 1, 3, 5, episodes_per_epoch=5)
-    exit()
 
     if args.train:
-        train()
+        train(args.epochs, args.n_train, args.k_train, args.q_train, n_eval=args.n_eval, k_eval=args.k_eval, q_eval=args.q_eval, episodes_per_epoch=args.episodes)
     else:
         parser.print_help()
