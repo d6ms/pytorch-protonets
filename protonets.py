@@ -3,6 +3,7 @@ from argparse import ArgumentParser
 
 import torch
 from torch.optim import Adam
+from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader
 
 import config
@@ -21,7 +22,7 @@ def parse_args():
     return args, parser
 
 
-def train(epochs, n_train, k_train, q_train, n_eval=1, k_eval=3, q_eval=5, episodes_per_epoch=100, num_tasks=1, lr=1e-3):
+def train(epochs, n_train, k_train, q_train, n_eval=1, k_eval=3, q_eval=5, episodes_per_epoch=100, num_tasks=1, lr=1e-3, lr_step_size=20, lr_gamma=0.5):
     # dataloaders for train and eval
     train_set = OmniglotDataset(subset='background')
     train_loader = DataLoader(train_set, num_workers=4, batch_sampler=FewShotBatchSampler(
@@ -35,14 +36,15 @@ def train(epochs, n_train, k_train, q_train, n_eval=1, k_eval=3, q_eval=5, episo
     # train settings
     model = protonet_embedding_model()
     optimizer = Adam(model.parameters(), lr=lr)
+    scheduler = StepLR(optimizer, step_size=lr_step_size, gamma=lr_gamma)
     loss_fn = torch.nn.NLLLoss()  # .cuda()
 
     for epoch in range(1, epochs + 1):
-        train_epoch(model, optimizer, loss_fn, train_loader, n_train, k_train, q_train, epoch)
+        train_epoch(model, optimizer, scheduler, loss_fn, train_loader, n_train, k_train, q_train, epoch)
         evaluate(model, optimizer, loss_fn, train_loader, n_eval, k_eval, q_eval, epoch)
 
 
-def train_epoch(model, optimizer, loss_fn, dataloader, n, k, q, epoch_idx):
+def train_epoch(model, optimizer, scheduler, loss_fn, dataloader, n, k, q, epoch_idx):
     model.train()
     optimizer.zero_grad()
     for i, batch in enumerate(dataloader, 1):
@@ -50,10 +52,11 @@ def train_epoch(model, optimizer, loss_fn, dataloader, n, k, q, epoch_idx):
         # y.shape: [k * q]
         x, y = prepare_batch(batch, k, q)
 
-        y_pred, loss = predict(x, y, model, loss_fn, n, k, q)
+        y_pred, loss = predict(model, n, k, q, x, y, loss_fn)
 
         loss.backward()
         optimizer.step()
+        scheduler.step()
 
         print(f'[epoch {epoch_idx} batch {i}] loss: {loss.item()}')
 
@@ -66,7 +69,7 @@ def evaluate(model, optimizer, loss_fn, dataloader, n, k, q, epoch_idx):
         for i, batch in enumerate(dataloader, 1):
             x, y = prepare_batch(batch, k, q)
             
-            y_pred, loss = predict(x, y, model, loss_fn, n, k, q)
+            y_pred, loss = predict(model, n, k, q, x, y, loss_fn)
 
             data_cnt += y_pred.shape[0]
             total_loss += loss.item() * y_pred.shape[0]
@@ -74,7 +77,7 @@ def evaluate(model, optimizer, loss_fn, dataloader, n, k, q, epoch_idx):
     print(f'[epoch {epoch_idx} eval] loss: {total_loss / data_cnt}')
 
 
-def predict(x, y, model, loss_fn, n, k, q):
+def predict(model, n, k, q, x, y=None, loss_fn=None):
     embeddings = model(x)
     supports, queries = embeddings[:n * k], embeddings[n * k:]
     prototypes = supports.reshape(k, n, -1).mean(dim=1)
@@ -82,7 +85,10 @@ def predict(x, y, model, loss_fn, n, k, q):
     distances = calc_distances(queries, prototypes, k, q)
 
     log_p_y = (-distances).log_softmax(dim=1)
-    loss = loss_fn(log_p_y, y)
+    if y is not None and loss_fn is not None:
+        loss = loss_fn(log_p_y, y)
+    else:
+        loss = None
 
     y_pred = (-distances).softmax(dim=1)
 
