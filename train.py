@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import numpy as np
 import torch
 from torch.optim import Adam
@@ -72,7 +74,7 @@ def train_epoch(model, optimizer, scheduler, loss_fn, dataloader, n, k, q, epoch
         optimizer.step()
         scheduler.step()
 
-        print(f'[epoch {epoch_idx} batch {i}] loss: {loss.item()}')
+        print(f'{datetime.now()} [epoch {epoch_idx} batch {i}] loss: {loss.item()}')
 
 
 def evaluate(model, history, loss_fn, dataloader, n, k, q, epoch_idx):
@@ -91,7 +93,7 @@ def evaluate(model, history, loss_fn, dataloader, n, k, q, epoch_idx):
 
     history['loss'].append(total_loss / data_cnt)
     history['accuracy'].append(total_acc / data_cnt)
-    print(f'[epoch {epoch_idx} eval] loss: {total_loss / data_cnt}, accuracy: {total_acc / data_cnt}')
+    print(f'{datetime.now()} [epoch {epoch_idx} eval] loss: {total_loss / data_cnt}, accuracy: {total_acc / data_cnt}')
 
 
 def predict(model, n, k, q, x, y=None, loss_fn=None):
