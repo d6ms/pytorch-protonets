@@ -16,7 +16,7 @@ from samplers import FewShotBatchSampler
 def parse_args():
     usage = f'Usage: python {__file__} [-t | --train] [-p | --predict]'
     parser = ArgumentParser(usage=usage)
-    parser.add_argument('-t', '--train', action='store_true', help='train mnist model')
+    parser.add_argument('-t', '--train', action='store_true', help='train model')
     parser.add_argument('-p', '--predict', action='store_true', help='load model and demonstrate prediction')
     args = parser.parse_args()
     return args, parser
@@ -42,6 +42,8 @@ def train(epochs, n_train, k_train, q_train, n_eval=1, k_eval=3, q_eval=5, episo
     for epoch in range(1, epochs + 1):
         train_epoch(model, optimizer, scheduler, loss_fn, train_loader, n_train, k_train, q_train, epoch)
         evaluate(model, optimizer, loss_fn, train_loader, n_eval, k_eval, q_eval, epoch)
+    
+    torch.save(model.state_dict(), f'{config.MODEL_PATH}/protonets.model')
 
 
 def train_epoch(model, optimizer, scheduler, loss_fn, dataloader, n, k, q, epoch_idx):
@@ -82,7 +84,7 @@ def predict(model, n, k, q, x, y=None, loss_fn=None):
     supports, queries = embeddings[:n * k], embeddings[n * k:]
     prototypes = supports.reshape(k, n, -1).mean(dim=1)
 
-    distances = calc_distances(queries, prototypes, k, q)
+    distances = calc_distances(queries, prototypes)
 
     log_p_y = (-distances).log_softmax(dim=1)
     if y is not None and loss_fn is not None:
@@ -110,11 +112,16 @@ def prepare_batch(batch, k, q):
     return x, y
 
 
-def calc_distances(queries, prototypes, k, q):
-    return (
-        queries.unsqueeze(1).expand(k * q, k, -1) -
-        prototypes.unsqueeze(0).expand(k * q, k, -1)
-    ).pow(2).sum(dim=2)
+def calc_distances(x, y):
+    # x: N x D
+    # y: M x D
+    n = x.size(0)
+    m = y.size(0)
+    d = x.size(1)
+
+    x = x.unsqueeze(1).expand(n, m, d)
+    y = y.unsqueeze(0).expand(n, m, d)
+    return torch.pow(x - y, 2).sum(2)
 
 
 if __name__ == '__main__':
