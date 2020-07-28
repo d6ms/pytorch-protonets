@@ -66,7 +66,7 @@ def train_epoch(model, optimizer, scheduler, loss_fn, dataloader, n, k, q, epoch
 def evaluate(model, optimizer, loss_fn, dataloader, n, k, q, epoch_idx):
     model.eval()
 
-    total_loss, data_cnt = 0, 0
+    total_loss, total_acc, data_cnt = 0, 0, 0
     with torch.no_grad():
         for i, batch in enumerate(dataloader, 1):
             x, y = prepare_batch(batch, k, q)
@@ -75,8 +75,9 @@ def evaluate(model, optimizer, loss_fn, dataloader, n, k, q, epoch_idx):
 
             data_cnt += y_pred.shape[0]
             total_loss += loss.item() * y_pred.shape[0]
+            total_acc += torch.eq(y_pred.argmax(dim=-1), y).sum().item()
 
-    print(f'[epoch {epoch_idx} eval] loss: {total_loss / data_cnt}')
+    print(f'[epoch {epoch_idx} eval] loss: {total_loss / data_cnt}, accuracy: {total_acc / data_cnt}')
 
 
 def predict(model, n, k, q, x, y=None, loss_fn=None):
