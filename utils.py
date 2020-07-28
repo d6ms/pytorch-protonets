@@ -4,6 +4,9 @@ import random
 import numpy as np
 import torch
 
+import config
+
+
 def fix_seeds(seed=0):
     random.seed(seed)
     np.random.seed(seed)
@@ -12,11 +15,6 @@ def fix_seeds(seed=0):
     torch.backends.cudnn.deterministic = True
 
 def create_dirs(base):
-    if len(base) == 0:
-        base = '.'
-    log_dir = f'{base}/logs'
-    model_dir = f'{base}/models'
-    data_dir = f'{base}/data'
-    for dir in [log_dir, model_dir, data_dir]:
+    for dir in [config.DATA_PATH, config.MODEL_PATH, config.LOG_PATH]:
         if not os.path.exists(dir):
             os.makedirs(dir)

@@ -1,12 +1,19 @@
+import numpy as np
 import torch
 from torch.optim import Adam
 from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader
 from torchsummary import summary
 
+import matplotlib
+import matplotlib.pyplot as plt
+from matplotlib import ticker
+
 import config
 from models import protonet_embedding_model
 from data import OmniglotDataset, FewShotBatchSampler
+
+matplotlib.use('Agg')
 
 
 def train(epochs, n_train, k_train, q_train, n_eval=1, k_eval=3, q_eval=5, episodes_per_epoch=100, num_tasks=1, lr=1e-3, lr_step_size=20, lr_gamma=0.5):
@@ -27,11 +34,14 @@ def train(epochs, n_train, k_train, q_train, n_eval=1, k_eval=3, q_eval=5, episo
     loss_fn = torch.nn.NLLLoss()  # .cuda()
 
     summary(model, (1, 105, 105))
+
+    history = {'loss': list(), 'accuracy': list()}
     for epoch in range(1, epochs + 1):
         train_epoch(model, optimizer, scheduler, loss_fn, train_loader, n_train, k_train, q_train, epoch)
-        evaluate(model, loss_fn, eval_loader, n_eval, k_eval, q_eval, epoch)
+        evaluate(model, history, loss_fn, eval_loader, n_eval, k_eval, q_eval, epoch)
     
     torch.save(model.state_dict(), f'{config.MODEL_PATH}/protonets.model')
+    save_history(history)
 
 
 def train_epoch(model, optimizer, scheduler, loss_fn, dataloader, n, k, q, epoch_idx):
@@ -51,7 +61,7 @@ def train_epoch(model, optimizer, scheduler, loss_fn, dataloader, n, k, q, epoch
         print(f'[epoch {epoch_idx} batch {i}] loss: {loss.item()}')
 
 
-def evaluate(model, loss_fn, dataloader, n, k, q, epoch_idx):
+def evaluate(model, history, loss_fn, dataloader, n, k, q, epoch_idx):
     model.eval()
 
     total_loss, total_acc, data_cnt = 0, 0, 0
@@ -65,6 +75,8 @@ def evaluate(model, loss_fn, dataloader, n, k, q, epoch_idx):
             total_loss += loss.item() * y_pred.shape[0]
             total_acc += torch.eq(y_pred.argmax(dim=-1), y).sum().item()
 
+    history['loss'].append(total_loss / data_cnt)
+    history['accuracy'].append(total_acc / data_cnt)
     print(f'[epoch {epoch_idx} eval] loss: {total_loss / data_cnt}, accuracy: {total_acc / data_cnt}')
 
 
@@ -84,6 +96,23 @@ def predict(model, n, k, q, x, y=None, loss_fn=None):
     y_pred = (-distances).softmax(dim=1)
 
     return y_pred, loss
+
+
+def save_history(history):
+    for metric, values in history.items():
+        # save raw data
+        with open(f'{config.LOG_PATH}/{metric}.data', mode='w') as f:
+            data = ','.join([str(v) for v in values])
+            f.write(data)
+        # save graph
+        x, y = np.linspace(1, len(values), len(values)), np.array(values)
+        plt.figure()
+        plt.plot(x, y, marker='o')
+        plt.title(metric)
+        plt.xlabel('epoch')
+        plt.ylabel(metric)
+        plt.gca().get_xaxis().set_major_locator(ticker.MaxNLocator(integer=True))
+        plt.savefig(f'{config.LOG_PATH}/{metric}.png')
 
 
 def prepare_batch(batch, k, q):
