@@ -45,7 +45,7 @@ def train(epochs, n_train, k_train, q_train, n_eval=1, k_eval=3, q_eval=5, episo
     model = protonet_embedding_model()
     optimizer = Adam(model.parameters(), lr=lr)
     scheduler = StepLR(optimizer, step_size=lr_step_size, gamma=lr_gamma)
-    loss_fn = torch.nn.NLLLoss()  # .cuda()
+    loss_fn = torch.nn.NLLLoss().to(config.DEVICE)
 
     summary(model, (1, 105, 105))
 
@@ -137,11 +137,11 @@ def prepare_batch(batch, k, q):
     # k * (n + q) means [n support sets of class 1 to k, q query sets of class 1 to k]
     data, label = batch
 
-    x = data.float() # .cuda()
+    x = data.float().to(config.DEVICE)
 
     # y = [*([0] * q), *([1] * q), ..., *([k - 1] * q)]
     # 正解ラベルはq個ごとにまとまっているため，q個ごとにclassification用のラベルを[0, k)で振り直す
-    y = torch.arange(0, k, 1 / q).long() # .cuda()
+    y = torch.arange(0, k, 1 / q).long().to(config.DEVICE)
 
     return x, y
 

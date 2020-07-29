@@ -28,7 +28,6 @@ if __name__ == '__main__':
 
     fix_seeds(0)
     create_dirs(config.BASE_PATH)
-    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
     if args.train:
         train(args.epochs, args.n_train, args.k_train, args.q_train, n_eval=args.n_eval, k_eval=args.k_eval, q_eval=args.q_eval, episodes_per_epoch=args.episodes)
