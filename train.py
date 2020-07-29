@@ -42,7 +42,7 @@ def train(epochs, n_train, k_train, q_train, n_eval=1, k_eval=3, q_eval=5, episo
     ))
 
     # train settings
-    model = protonet_embedding_model()
+    model = protonet_embedding_model().to(config.DEVICE)
     optimizer = Adam(model.parameters(), lr=lr)
     scheduler = StepLR(optimizer, step_size=lr_step_size, gamma=lr_gamma)
     loss_fn = torch.nn.NLLLoss().to(config.DEVICE)
@@ -54,10 +54,11 @@ def train(epochs, n_train, k_train, q_train, n_eval=1, k_eval=3, q_eval=5, episo
     for epoch in range(1, epochs + 1):
         train_epoch(model, optimizer, scheduler, loss_fn, train_loader, n_train, k_train, q_train, epoch)
         evaluate(model, history, loss_fn, eval_loader, n_eval, k_eval, q_eval, epoch)
-    
-    # save model and history
-    torch.save(model.state_dict(), f'{config.MODEL_PATH}/protonets.model')
-    save_history(history)
+
+        # save model and history
+        if epoch == 1 or history['accuracy'][-1] > max(history['accuracy'][:-1]):
+            torch.save(model.state_dict(), f'{config.MODEL_PATH}/protonets.ckpt')
+        save_history(history)
 
 
 def train_epoch(model, optimizer, scheduler, loss_fn, dataloader, n, k, q, epoch_idx):
