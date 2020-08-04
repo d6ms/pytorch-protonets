@@ -33,11 +33,11 @@ def train(epochs, n_train, k_train, q_train, n_eval=1, k_eval=3, q_eval=5, episo
 
     # dataloaders for train and eval
     train_set = OmniglotDataset(subset='background')
-    train_loader = DataLoader(train_set, num_workers=4, batch_sampler=FewShotBatchSampler(
+    train_loader = DataLoader(train_set, num_workers=0, batch_sampler=FewShotBatchSampler(
         train_set, episodes_per_epoch=episodes_per_epoch, n=n_train, k=k_train, q=q_train, num_tasks=num_tasks
     ))
     eval_set = OmniglotDataset(subset='evaluation')
-    eval_loader = DataLoader(eval_set, num_workers=4, batch_sampler=FewShotBatchSampler(
+    eval_loader = DataLoader(eval_set, num_workers=0, batch_sampler=FewShotBatchSampler(
         eval_set, episodes_per_epoch=episodes_per_epoch, n=n_eval, k=k_eval, q=q_eval, num_tasks=num_tasks
     ))
 

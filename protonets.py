@@ -26,7 +26,7 @@ def parse_args():
 if __name__ == '__main__':
     args, parser = parse_args()
 
-    fix_seeds(0)
+    fix_seeds(1234)
     create_dirs(config.BASE_PATH)
 
     if args.train:
