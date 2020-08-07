@@ -63,8 +63,9 @@ def train(epochs, n_train, k_train, q_train, n_eval=1, k_eval=3, q_eval=5, episo
 
 def train_epoch(model, optimizer, scheduler, loss_fn, dataloader, n, k, q, epoch_idx):
     model.train()
-    optimizer.zero_grad()
     for i, batch in enumerate(dataloader, 1):
+        optimizer.zero_grad()
+
         # x.shape: [k * (n + q) * num_tasks, 1, 105, 105]
         # y.shape: [k * q]
         x, y = prepare_batch(batch, k, q)
